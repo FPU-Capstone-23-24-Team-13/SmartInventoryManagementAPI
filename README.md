@@ -1,1 +1,1 @@
-# SmartInventoryManagementAPI-
+# SmartInventoryManagementAPI
