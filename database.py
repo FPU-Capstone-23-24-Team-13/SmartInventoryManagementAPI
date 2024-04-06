@@ -1,6 +1,5 @@
 import datetime
-
-from sqlalchemy import ForeignKey, DateTime, func
+from sqlalchemy import URL, ForeignKey, DateTime, func, MetaData, Table, Column, String, Integer
 from sqlalchemy.orm import (
     DeclarativeBase,
     Session,
@@ -12,63 +11,83 @@ from sqlalchemy import create_engine
 
 import os
 
+
 SQLITE_DB_PATH = "running"
 
 # Provide some more useful metadata when debugging, like:
 # what does this string contain again? oh, raw html.
-RawHtml = str
-ItemId = int
+ItemSKU = str
+ItemName = str
+ItemDescription = str
+ReorderThreshold = int
+ItemCount = int
 
+LocationId = str
+StoreroomName = str
+ShelfName = str
 
+SensorId = str
 class Base(DeclarativeBase):
     pass
 
+class Item(Base):
+    __tablename__ = "items"
+    sku: Mapped[ItemSKU] = mapped_column(primary_key=True)
+    name: Mapped[ItemName] = mapped_column()
+    description: Mapped[ItemDescription] = mapped_column()
+    reorder_threshold: Mapped[ReorderThreshold] = mapped_column()
+    count: Mapped[ItemCount] = mapped_column()
+    location_id: Mapped[LocationId] = mapped_column(ForeignKey("locations.location_id"), nullable=True)  # Define foreign key
+    sensor_id: Mapped[SensorId] = relationship("Sensor")
 
-class User(Base):
-    __tablename__ = "user"
-    id: Mapped[ItemId] = mapped_column(primary_key=True)
-
-    completions: Mapped[list["Completion"]] = relationship(back_populates="user")
-
-
-class Task(Base):
-    __tablename__ = "task"
-    id: Mapped[ItemId] = mapped_column(primary_key=True)
-    task: Mapped[RawHtml] = mapped_column(nullable=True)
-    hint: Mapped[RawHtml] = mapped_column(nullable=True)
-
-    completions: Mapped[list["Completion"]] = relationship(back_populates="task")
-
-
-class Completion(Base):
-    __tablename__ = "completion"
-    user_id: Mapped[ItemId] = mapped_column(ForeignKey("user.id"), primary_key=True)
-    task_id: Mapped[ItemId] = mapped_column(ForeignKey("task.id"), primary_key=True)
-    timestamp: Mapped[datetime.datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
+class Location(Base):
+    __tablename__ = "locations"
+    location_id: Mapped[LocationId] = mapped_column(primary_key=True)
+    storeroom_name: Mapped[StoreroomName] = mapped_column()
+    shelf_name: Mapped[ShelfName] = mapped_column()
+    items: Mapped[list["Item"]] = relationship()
+# class Task(Base):
+#     __tablename__ = "task"
+#     id: Mapped[ItemId] = mapped_column(primary_key=True)
+#     task: Mapped[RawHtml] = mapped_column(nullable=True)
+#     hint: Mapped[RawHtml] = mapped_column(nullable=True)
+#
+#     completions: Mapped[list["Completion"]] = relationship(back_populates="task")
+class Sensor(Base):
+    __tablename__ = "sensors"
+    sensor_id: Mapped[SensorId] = mapped_column(primary_key=True)
+    sku: Mapped[ItemSKU] = mapped_column(ForeignKey("items.sku"), nullable=True)
+def make_engine(database_name):
+    url = URL.create(
+        drivername="postgresql",
+        username="postgres",
+        password="Capstone",
+        port=5432,
+        database=database_name
     )
 
-    user: Mapped["User"] = relationship(back_populates="completions")
-    task: Mapped["Task"] = relationship(back_populates="completions")
-
-
-engine = create_engine(f"sqlite:///{SQLITE_DB_PATH}/database.db", echo=False)
-
-
-def get_session():
+    engine = create_engine(url)
+    return engine
+def get_session(engine):
     return Session(engine)
-
-
 if __name__ == "__main__":
+    engine = make_engine("postgres")
     os.makedirs(SQLITE_DB_PATH, exist_ok=True)
+    Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)
-    with get_session() as session:
-        tasks = [
-            Task(task="Task 1", hint="Hint for Task 1"),
-            Task(task="Task 2", hint="Hint for Task 2"),
-            Task(task="Task 3", hint="Hint for Task 3"),
-            Task(task="Task 4", hint="Hint for Task 4"),
-            Task(task="Task 5", hint="Hint for Task 5"),
-        ]
-        session.add_all(tasks)
+
+
+    with get_session(engine) as session:
+        # locations = [
+        #     Location(id=1, storeroom_name="Capstone Lab", shelf_name="Work Table")
+        # ]
+        # session.add_all(locations)
+        # items = [
+        #     Item(sku=1, name='Object 1', description='Object 1', reorder_threshold=2, count=10, location_id=1),
+        #     Item(sku=2, name='Object 2', description='Object 2', reorder_threshold=1, count=10, location_id=1),
+        #     Item(sku=3, name='Object 3', description='Object 3', reorder_threshold=2, count=10, location_id=1),
+        #     Item(sku=4, name='Object 4', description='Object 4', reorder_threshold=2, count=10, location_id=1),
+        #     Item(sku=5, name='Object 5', description='Object 5', reorder_threshold=2, count=10, location_id=1),
+        # ]
+        # session.add_all(items)
         session.commit()
