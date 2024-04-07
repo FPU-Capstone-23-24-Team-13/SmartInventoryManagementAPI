@@ -25,7 +25,7 @@ def create_session():
 '''
 Returns a list of all SKUs from database
 '''
-@app.route("/item", methods=['GET'])
+@app.route("/item/", methods=['GET'])
 def get_item_list():
     session = create_session()
     items = session.query(Item).all()
