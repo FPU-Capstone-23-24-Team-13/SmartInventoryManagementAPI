@@ -113,7 +113,7 @@ def get_sensor_list():
     sensors = session.query(Sensor).all()
     session.close()
     sensor_ids = [sensor.sensor_id for sensor in sensors]
-    endpoints = [f"/item/{sensor_id}" for sensor_id in sensor_ids]
+    endpoints = [f"/sensor/{sensor_id}" for sensor_id in sensor_ids]
     return_arr = [{'sensor_id': sensor_id, 'endpoint': endpoint} for sensor_id, endpoint in zip(sensor_ids, endpoints)]
     return jsonify(return_arr)
 '''
@@ -123,11 +123,19 @@ Returns information about the sensor corresponding to a specific id
 def get_sensor_info(sensor_id):
     session = create_session()
     sensor = session.query(Sensor).filter_by(sensor_id=sensor_id).first()
+    if sensor is not None and sensor.sku is not None:
+        item_obj = session.query(Item).filter_by(sku=sensor.sku).first()
+        endpoint = f"/item/{item_obj.sku}"
+        item = {'sku': item_obj.sku, 'endpoint': endpoint}
+
+    else:
+        item = None
+
     session.close()
     if sensor:
         sensor_info = {
             'sensor_id': sensor.sensor_id,
-            'sku': sensor.sku
+            'item': item
         }
         return jsonify(sensor_info)
     return jsonify({'message': f'Sensor not found with sensor_id {sensor_id}',
