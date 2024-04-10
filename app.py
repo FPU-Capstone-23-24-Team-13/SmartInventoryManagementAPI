@@ -1,5 +1,6 @@
 #from flask import Flask, render_template, send_from_directory, make_response, request
 from flask import Flask, jsonify, request
+from flask_cors import CORS
 from database import make_engine, get_session, Item, Location, Sensor
 from psycopg2.errors import ForeignKeyViolation, NotNullViolation
 from sqlalchemy.exc import IntegrityError
@@ -7,7 +8,7 @@ import database as db
 import util
 
 app = Flask(__name__)
-
+CORS(app, origins=['http://localhost:63343', 'http://localhost:80', 'http://localhost:443'])
 '''
 code 1: Entry missing attribute and thus could not be updated
 code 2: Entry could not be created with incomplete entries
@@ -19,13 +20,13 @@ code 5: Invalid entry submitted for object creation
 Create Database session
 '''
 def create_session():
-    engine = make_engine("postgres")
+    engine = make_engine("LRH_db")
     return get_session(engine)
 
 '''
 Returns a list of all SKUs from database
 '''
-@app.route("/item", methods=['GET'])
+@app.route("/item/", methods=['GET'])
 def get_item_list():
     session = create_session()
     items = session.query(Item).all()
@@ -106,7 +107,7 @@ def edit_item_info(sku):
 '''
 Returns a list of all sensors from database
 '''
-@app.route("/sensor", methods=['GET'])
+@app.route("/sensor/", methods=['GET'])
 def get_sensor_list():
     session = create_session()
     sensors = session.query(Sensor).all()
@@ -184,15 +185,19 @@ def edit_sensor_info(sensor_id):
 '''
 Returns a list of all locations from database
 '''
-@app.route("/location", methods=['GET'])
+@app.route("/location/", methods=['GET'])
 def get_location_list():
     session = create_session()
     locations = session.query(Location).all()
     session.close()
-    location_ids = [location.location_id for location in locations]
-    endpoints = [f"/location/{location_id}" for location_id in location_ids]
-    return_arr = [{'location_id': location_id, 'endpoint': endpoint} for location_id, endpoint in zip(location_ids, endpoints)]
-    return jsonify(return_arr)
+    locations_data = [
+        {
+            'location_id': location.location_id,
+            'storeroom_name': location.storeroom_name,
+            'shelf_name': location.shelf_name
+        } for location in locations
+    ]
+    return jsonify(locations_data)
 '''
 Returns information about the location corresponding to a specific location_id
 '''
@@ -263,4 +268,4 @@ def edit_location_info(location_id):
     session.close()
     return output
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=True)

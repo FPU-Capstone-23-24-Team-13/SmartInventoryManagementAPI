@@ -60,7 +60,7 @@ class Sensor(Base):
 def make_engine(database_name):
     url = URL.create(
         drivername="postgresql",
-        username="postgres",
+        username="Andrew",
         password="Capstone",
         port=5432,
         database=database_name
@@ -71,17 +71,17 @@ def make_engine(database_name):
 def get_session(engine):
     return Session(engine)
 if __name__ == "__main__":
-    engine = make_engine("postgres")
+    engine = make_engine("LRH_db")
     os.makedirs(SQLITE_DB_PATH, exist_ok=True)
     Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)
 
 
     with get_session(engine) as session:
-        # locations = [
-        #     Location(id=1, storeroom_name="Capstone Lab", shelf_name="Work Table")
-        # ]
-        # session.add_all(locations)
+        locations = [
+            Location(location_id=1, storeroom_name="Capstone Lab", shelf_name="Work Table")
+        ]
+        session.add_all(locations)
         # items = [
         #     Item(sku=1, name='Object 1', description='Object 1', reorder_threshold=2, count=10, location_id=1),
         #     Item(sku=2, name='Object 2', description='Object 2', reorder_threshold=1, count=10, location_id=1),
