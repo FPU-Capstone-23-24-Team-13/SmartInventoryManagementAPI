@@ -1,5 +1,6 @@
 import datetime
-from sqlalchemy import URL, ForeignKey, DateTime, func, MetaData, Table, Column, String, Integer
+from sqlalchemy import URL, ForeignKey, inspect, DateTime, func, MetaData, Table, Column, String, Integer
+from sqlalchemy_utils import database_exists
 from sqlalchemy.orm import (
     DeclarativeBase,
     Session,
@@ -46,13 +47,6 @@ class Location(Base):
     storeroom_name: Mapped[StoreroomName] = mapped_column()
     shelf_name: Mapped[ShelfName] = mapped_column()
     items: Mapped[list["Item"]] = relationship()
-# class Task(Base):
-#     __tablename__ = "task"
-#     id: Mapped[ItemId] = mapped_column(primary_key=True)
-#     task: Mapped[RawHtml] = mapped_column(nullable=True)
-#     hint: Mapped[RawHtml] = mapped_column(nullable=True)
-#
-#     completions: Mapped[list["Completion"]] = relationship(back_populates="task")
 class Sensor(Base):
     __tablename__ = "sensors"
     sensor_id: Mapped[SensorId] = mapped_column(primary_key=True)
@@ -63,31 +57,29 @@ def make_engine(database_name):
         username="Andrew",
         password="Capstone",
         port=5432,
-        database=database_name
+        database=database_name,
+        host='config-postgres-1',
     )
 
     engine = create_engine(url)
     return engine
 def get_session(engine):
     return Session(engine)
-if __name__ == "__main__":
+
+def start_db():
     engine = make_engine("LRH_db")
     os.makedirs(SQLITE_DB_PATH, exist_ok=True)
-    Base.metadata.drop_all(engine)
-    Base.metadata.create_all(engine)
+    with engine.connect() as connection:
+        inspector = inspect(connection)
+        existing_tables = inspector.get_table_names()
 
-
-    with get_session(engine) as session:
-        locations = [
-            Location(location_id=1, storeroom_name="Capstone Lab", shelf_name="Work Table")
-        ]
-        session.add_all(locations)
-        # items = [
-        #     Item(sku=1, name='Object 1', description='Object 1', reorder_threshold=2, count=10, location_id=1),
-        #     Item(sku=2, name='Object 2', description='Object 2', reorder_threshold=1, count=10, location_id=1),
-        #     Item(sku=3, name='Object 3', description='Object 3', reorder_threshold=2, count=10, location_id=1),
-        #     Item(sku=4, name='Object 4', description='Object 4', reorder_threshold=2, count=10, location_id=1),
-        #     Item(sku=5, name='Object 5', description='Object 5', reorder_threshold=2, count=10, location_id=1),
-        # ]
-        # session.add_all(items)
-        session.commit()
+        if 'items' not in existing_tables or 'locations' not in existing_tables or 'sensors' not in existing_tables:
+            Base.metadata.create_all(engine)
+            with get_session(engine) as session:
+                locations = [
+                    Location(location_id=1, storeroom_name="Capstone Lab", shelf_name="Work Table")
+                ]
+                session.add_all(locations)
+                session.commit()
+        else:
+            print("Tables already exist. Skipping table creation.")

@@ -1,7 +1,7 @@
 #from flask import Flask, render_template, send_from_directory, make_response, request
 from flask import Flask, jsonify, request
 from flask_cors import CORS
-from database import make_engine, get_session, Item, Location, Sensor
+from database import make_engine, get_session, Item, Location, Sensor, start_db
 from psycopg2.errors import ForeignKeyViolation, NotNullViolation
 from sqlalchemy.exc import IntegrityError
 import database as db
@@ -29,8 +29,32 @@ Returns a list of all SKUs from database
 @app.route("/item/", methods=['GET'])
 def get_item_list():
     session = create_session()
-    items = session.query(Item).all()
+
+    # Get query parameters from URL
+    sku = request.args.get('sku')
+    name = request.args.get('name')
+    storeroom_name = request.args.get('storeroom_name')
+    shelf_name = request.args.get('shelf_name')
+    filter_count_reorder = request.args.get('filter_count_reorder', 'false').lower() == 'true'
+    # Build the query based on the provided parameters
+    query = session.query(Item)
+
+    if sku:
+        query = query.filter_by(sku=sku)
+    if name:
+        query = query.filter_by(name=name)
+    if storeroom_name and shelf_name:
+        query = query.join(Location).filter_by(storeroom_name=storeroom_name, shelf_name=shelf_name)
+    elif storeroom_name:
+        query = query.join(Location).filter_by(storeroom_name=storeroom_name)
+
+    # Apply the filter for count <= reorder threshold
+    if filter_count_reorder:
+        query = query.filter(Item.count <= Item.reorder_threshold)
+
+    items = query.all()
     session.close()
+
     skus = [item.sku for item in items]
     endpoints = [f"/item/{sku}" for sku in skus]
     return_arr = [{'sku': sku, 'endpoint': endpoint} for sku, endpoint in zip(skus, endpoints)]
@@ -42,18 +66,26 @@ Returns information about the item corresponding to a specific SKU
 def get_item_info(sku):
     session = create_session()
     item = session.query(Item).filter_by(sku=sku).first()
-    session.close()
-    if item:
+
+    if item:  # Check if item exists and location_id is not null
+        if item.location_id is not None:
+            location = session.query(Location).filter_by(location_id=item.location_id).first()
+        else:
+            location = None
         item_info = {
             'sku': item.sku,
             'name': item.name,
             'description': item.description,
             'reorder_threshold': item.reorder_threshold,
             'count': item.count,
-            'location_id': item.location_id
+            'storeroom_name': location.storeroom_name if location else None,
+            'shelf_name': location.shelf_name if location else None
         }
+        session.close()
         return jsonify(item_info)
-    return jsonify({'message': f'Item not found with sku {sku}',
+    else:
+        session.close()
+        return jsonify({'message': f'Item not found with sku {sku}',
                     'code': 3})
 '''
 Edits the database with information from request
@@ -82,7 +114,7 @@ def edit_item_info(sku):
         try:
             item = Item(**data)
             session.add(item)
-            output = jsonify({'message:': f'sku: {data['sku']} was successfully created',
+            output = jsonify({'message:': f'sku: {data["sku"]} was successfully created',
                               'datafields': data,
                               'code': 0})
             session.commit()
@@ -167,7 +199,7 @@ def edit_sensor_info(sensor_id):
         try:
             sensor = Sensor(**data)
             session.add(sensor)
-            output = jsonify({'message:': f'sensor_id: {data['sensor_id']} was successfully created',
+            output = jsonify({'message:': f'sensor_id: {data["sensor_id"]} was successfully created',
                               'datafields': data,
                               'code': 0})
             session.commit()
@@ -185,7 +217,7 @@ def edit_sensor_info(sensor_id):
                                   'code': 2}), 400
         except Exception as e:
             session.rollback()
-            output = jsonify({'message': 'Item could not be created because of invalid entry.',
+            output = jsonify({'message': 'Sensor could not be created because of invalid entry.',
                               'code': 5})
     session.close()
     return output
@@ -254,7 +286,7 @@ def edit_location_info(location_id):
         try:
             item = Location(**data)
             session.add(item)
-            output = jsonify({'message:': f'location_id: {data['location_id']} was successfully created',
+            output = jsonify({'message:': f'location_id: {data["location_id"]} was successfully created',
                               'datafields': data,
                               'code': 0})
             session.commit()
@@ -276,4 +308,5 @@ def edit_location_info(location_id):
     session.close()
     return output
 if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    start_db() 
+    app.run(debug=True)
