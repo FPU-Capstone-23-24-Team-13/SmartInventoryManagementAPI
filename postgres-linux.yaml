@@ -1,0 +1,33 @@
+services:
+  postgres:
+    image: postgres
+    restart: always
+    environment:
+      POSTGRES_USER: Andrew
+      POSTGRES_PASSWORD: Capstone
+      POSTGRES_DB: LRH_db
+    volumes:
+      - /var/lrh_store/database:/var/lib/postgresql/data
+    ports:
+      - 5432:5432
+  nginx:
+    image: nginx
+    restart: always
+    volumes: 
+      - /var/lrh_store/nginx/html:/usr/share/nginx/html:ro
+      - /var/lrh_store/nginx/conf.d:/etc/nginx/conf.d
+    ports:
+      - 80:80
+      - 443:443
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+  lrhflask:
+    image: lrhflask
+    restart: always
+     
+  adminer:
+    image: adminer
+    restart: always
+    ports:
+      - 8080:8080
+
